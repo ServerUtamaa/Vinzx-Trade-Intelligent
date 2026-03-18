@@ -10,7 +10,11 @@ interface AuthOverlayProps {
     onClose: () => void;
 }
 
-const AuthOverlay: React.FC<AuthOverlayProps> = ({ onLoginSuccess, onVerifyOtp, onClose }) => {
+const AuthOverlay: React.FC<AuthOverlayProps> = ({ 
+    onLoginSuccess, 
+    onVerifyOtp, 
+    onClose
+}) => {
     const [mode, setMode] = useState<'LOGIN' | 'REGISTER' | 'DEV' | 'RESET_PASSWORD'>('LOGIN');
     
     // --- DEFAULT VALUES FOR QUICK ACCESS ---

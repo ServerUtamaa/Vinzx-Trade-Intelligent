@@ -51,6 +51,22 @@ const responseSchema: Schema = {
   required: ["signal", "confidence", "entry", "sl", "tp", "reasoning", "concepts", "prediction", "next_price_prediction", "trend_prediction", "drl_metrics"]
 };
 
+const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
+const callWithRetry = async (fn: () => Promise<any>, retries = 3, delay = 1000): Promise<any> => {
+  try {
+    return await fn();
+  } catch (error: any) {
+    const isRateLimit = error?.status === 429 || error?.error?.code === 429 || error?.error?.status === "RESOURCE_EXHAUSTED";
+    if (retries > 0 && isRateLimit) {
+      console.warn(`Rate limit hit, retrying in ${delay}ms...`);
+      await sleep(delay);
+      return callWithRetry(fn, retries - 1, delay * 2);
+    }
+    throw error;
+  }
+};
+
 export const analyzeMarketStructure = async (
   asset: Asset,
   candles: Candle[],
@@ -179,7 +195,7 @@ export const analyzeMarketStructure = async (
     `;
 
     try {
-        const response = await ai.models.generateContent({
+        const response = await callWithRetry(() => ai.models.generateContent({
           model: 'gemini-3.1-pro-preview', 
           contents: prompt,
           config: {
@@ -189,7 +205,7 @@ export const analyzeMarketStructure = async (
             thinkingConfig: { thinkingLevel: ThinkingLevel.HIGH }, // Max Intelligence for DRL Neuron
             temperature: 0.1, // Precision mode
           }
-        });
+        }));
         
         if (!response.text) throw new Error("Empty response");
         return parseResponse(response.text, timeframe);

@@ -30,13 +30,13 @@ interface FloatingUIProps {
   onGenerateOtp: (username: string) => string;
   executionHistory: ExecutionRecord[];
   isOnline: boolean;
-  installPrompt?: any; 
-  onInstallApp?: () => void; 
 }
 
 const QRIS_IMAGE_URL = "https://i.ibb.co.com/WNs2zLC1/Screenshot-20260307-144011-1.jpg"; 
 
 const MEMBERSHIP_IMAGES = {
+    'WEEKLY': "https://i.ibb.co.com/LXQTP3Pj/image-1.jpg",
+    'BIWEEKLY': "https://i.ibb.co.com/LXQTP3Pj/image-1.jpg",
     'BASIC': "https://i.ibb.co.com/LXQTP3Pj/image-1.jpg",   
     'VIP': "https://i.ibb.co.com/LXQTP3Pj/image-1.jpg",     
     'MONTHLY': "https://i.ibb.co.com/LXQTP3Pj/image-1.jpg",  
@@ -101,8 +101,7 @@ const HISTORY_FILTERS = [
 const FloatingUI: React.FC<FloatingUIProps> = ({
   currentAsset, currentTimeframe, onAssetChange, onTimeframeChange, onAnalyze, isAnalyzing, analysis, children,
   priceOffset, setPriceOffset, onFeedback, feedback, voiceGender, setVoiceGender, onPlayAudio, isPlayingAudio,
-  userSession, onRequestAuth, onLogout, onGenerateOtp, executionHistory, isOnline,
-  installPrompt, onInstallApp
+  userSession, onRequestAuth, onLogout, onGenerateOtp, executionHistory, isOnline
 }) => {
   const [showAssetSelector, setShowAssetSelector] = useState(false);
   const [showDashboard, setShowDashboard] = useState(false);
@@ -683,9 +682,14 @@ const FloatingUI: React.FC<FloatingUIProps> = ({
                                         </div>
                                         <div>
                                             <div className="text-[10px] font-bold text-white flex items-center gap-1.5">
-                                                {(userSession.membershipTier === 'NONE' || (userSession.membershipExpiresAt && userSession.membershipExpiresAt <= Date.now())) && (
-                                                    <img src="https://i.ibb.co.com/LXQTP3Pj/image-1.jpg" alt="M" className="w-[16px] h-[10px] rounded-sm object-contain bg-white/10" referrerPolicy="no-referrer" />
-                                                )}
+                                                {(() => {
+                                                    const tier = userSession.membershipTier || 'NONE';
+                                                    const isExpired = userSession.membershipExpiresAt && userSession.membershipExpiresAt <= Date.now();
+                                                    const img = (tier !== 'NONE' && !isExpired) 
+                                                        ? (MEMBERSHIP_IMAGES[tier as keyof typeof MEMBERSHIP_IMAGES] || "https://i.ibb.co.com/LXQTP3Pj/image-1.jpg")
+                                                        : "https://i.ibb.co.com/LXQTP3Pj/image-1.jpg";
+                                                    return <img src={img} alt="M" className="w-[16px] h-[10px] rounded-sm object-contain bg-white/10" referrerPolicy="no-referrer" />;
+                                                })()}
                                                 {userSession.membershipTier === 'NONE' || (userSession.membershipExpiresAt && userSession.membershipExpiresAt <= Date.now()) 
                                                     ? "Berlangganan Sekarang✨" 
                                                     : timeLeftDisplay}
@@ -704,19 +708,6 @@ const FloatingUI: React.FC<FloatingUIProps> = ({
                             </div>
                          </div>
 
-                         {/* PWA INSTALL BUTTON */}
-                        {installPrompt && onInstallApp && (
-                            <button onClick={onInstallApp} className="w-full p-4 bg-gradient-to-r from-blue-900/30 to-purple-900/30 border border-blue-500/50 rounded-2xl flex items-center justify-between group hover:border-blue-400 transition-all shadow-[0_0_15px_-5px_rgba(59,130,246,0.3)] animate-pulse-slow">
-                                <div className="flex items-center gap-4">
-                                    <div className="w-10 h-10 bg-blue-500 text-white rounded-xl flex items-center justify-center font-black text-lg">↓</div>
-                                    <div className="text-left">
-                                        <div className="text-xs font-black text-blue-400 uppercase tracking-wide">INSTALL APPLICATION</div>
-                                        <div className="text-[9px] text-zinc-400">Download ke HP (Tanpa ke Playstore)</div>
-                                    </div>
-                                </div>
-                                <span className="text-zinc-600 group-hover:text-blue-400 transition-colors">→</span>
-                            </button>
-                        )}
                         <div className="space-y-3">
                             <button onClick={() => { setShowFundamentalData(true); setShowDashboard(false); }} className="w-full p-4 bg-[#0a0a0a] border border-zinc-800 rounded-2xl flex items-center justify-between group hover:border-amber-500/30 transition-all"><div className="flex items-center gap-4"><div className="w-10 h-10 bg-amber-900/10 rounded-xl flex items-center justify-center text-amber-500"><span className="text-xl">🌎</span></div><div className="text-left"><div className="text-xs font-bold text-white">Kalender Ekonomi Dunia</div><div className="text-[9px] text-zinc-500">Data Fundamental & Bloomberg</div></div></div><span className="text-zinc-600 group-hover:text-amber-500 transition-colors">→</span></button>
                             <button onClick={() => { setShowHistoryModal(true); setShowDashboard(false); }} className="w-full p-4 bg-[#0a0a0a] border border-zinc-800 rounded-2xl flex items-center justify-between group hover:border-purple-500/30 transition-all"><div className="flex items-center gap-4"><div className="w-10 h-10 bg-purple-900/10 rounded-xl flex items-center justify-center text-purple-500"><svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg></div><div className="text-left"><div className="text-xs font-bold text-white">History Trading</div><div className="text-[9px] text-zinc-500">Analisa & Winrate Record</div></div></div><span className="text-zinc-600 group-hover:text-purple-500 transition-colors">→</span></button>

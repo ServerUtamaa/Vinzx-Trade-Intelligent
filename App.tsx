@@ -24,9 +24,6 @@ const App: React.FC = () => {
   // --- SYSTEM INTEGRATION STATE ---
   const [isSystemOnline, setIsSystemOnline] = useState(false); 
 
-  // --- PWA INSTALL STATE ---
-  const [installPrompt, setInstallPrompt] = useState<any>(null);
-
   // --- OTP SYSTEM ---
   const [otpDatabase, setOtpDatabase] = useState<OtpRecord[]>([]);
 
@@ -95,23 +92,10 @@ const App: React.FC = () => {
       };
       performSystemCheck();
 
-      // PWA INSTALL LISTENER
-      window.addEventListener('beforeinstallprompt', (e) => {
-          e.preventDefault();
-          setInstallPrompt(e);
-      });
-
-      return () => { clearTimeout(timer); };
+      return () => { 
+          clearTimeout(timer); 
+      };
   }, []);
-
-  const handleInstallApp = async () => {
-      if (!installPrompt) return;
-      installPrompt.prompt();
-      const { outcome } = await installPrompt.userChoice;
-      if (outcome === 'accepted') {
-          setInstallPrompt(null);
-      }
-  };
 
   useEffect(() => {
       // Sync local session with DB just to get History, 
@@ -616,11 +600,10 @@ const App: React.FC = () => {
                 onGenerateOtp={handleGenerateOtp}
                 executionHistory={history}
                 isOnline={true}
-                installPrompt={installPrompt}
-                onInstallApp={handleInstallApp}
             >
                 <CandleStickChart key={`${currentAsset}-${currentTimeframe}`} data={marketData} priceOffset={priceOffset} timeframe={currentTimeframe} currentAsset={currentAsset} />
             </FloatingUI>
+
         </div>
     </div>
   );
