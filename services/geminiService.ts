@@ -212,7 +212,7 @@ export const analyzeMarketStructure = async (
 
     } catch (modelError) {
         console.error("DRL Core failed, engaging Fallback Neural Net:", modelError);
-        const fallbackResponse = await ai.models.generateContent({
+        const fallbackResponse = await callWithRetry(() => ai.models.generateContent({
             model: 'gemini-2.5-flash',
             contents: prompt,
             config: {
@@ -221,7 +221,7 @@ export const analyzeMarketStructure = async (
                 responseSchema: responseSchema,
                 temperature: 0.1
             }
-        });
+        }));
         return parseResponse(fallbackResponse.text || "{}", timeframe);
     }
 
