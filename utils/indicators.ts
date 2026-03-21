@@ -1,5 +1,5 @@
 
-import { Candle, TimeFrame } from "../types";
+import { Candle, TimeFrame, Asset } from "../types";
 
 // --- CORE MATHEMATICS (THE LEFT BRAIN) ---
 
@@ -196,8 +196,6 @@ export const calculateATR = (candles: Candle[], period: number = 14): number => 
 
   return calculateSMA(trs, period);
 };
-
-// --- NEW: COMPREHENSIVE CANDLESTICK PATTERN DETECTION ---
 
 export interface CandlestickPattern {
     name: string;

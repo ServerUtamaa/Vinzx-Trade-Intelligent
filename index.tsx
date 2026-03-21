@@ -1,6 +1,18 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';
+import { registerSW } from 'virtual:pwa-register';
+
+// Register service worker silently for PWA
+const updateSW = registerSW({
+  onNeedRefresh() {
+    // Silently update or let the user know if needed. 
+    // We are keeping it silent as requested.
+  },
+  onOfflineReady() {
+    // Ready to work offline
+  },
+});
 
 const rootElement = document.getElementById('root');
 if (!rootElement) {

@@ -69,6 +69,7 @@ const App: React.FC = () => {
   
   const wsRef = useRef<WebSocket | null>(null);
   const chartDataRef = useRef<Candle[]>([]);
+  const isSyntheticRef = useRef<boolean>(false);
   const reqAnimFrameRef = useRef<number | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
   const currentAssetRef = useRef<Asset>(Asset.XAUUSD);
@@ -182,6 +183,7 @@ const App: React.FC = () => {
     } else {
        chartDataRef.current = [newCandle];
     }
+    setMarketData([...chartDataRef.current]);
   };
 
   const ensureDataLength = (candles: Candle[], targetLength: number = 5000, timeframe: TimeFrame): Candle[] => {
@@ -248,7 +250,11 @@ const App: React.FC = () => {
               if (json.Response === 'Success' && json.Data?.Data?.length > 0) {
                    const rawCandles = json.Data.Data.map((d: any) => ({ time: d.time * 1000, open: d.open - correction, high: d.high - correction, low: d.low - correction, close: d.close - correction })).filter((c: any) => c.close > 0);
                    const stitched = ensureDataLength(rawCandles, 5000, timeframe);
-                   if (isActive()) { chartDataRef.current = stitched; setMarketData(stitched); }
+                   if (isActive()) { 
+                       chartDataRef.current = stitched; 
+                       isSyntheticRef.current = false;
+                       setMarketData(stitched); 
+                   }
                    return;
               }
           } catch (e) { }
@@ -265,6 +271,7 @@ const App: React.FC = () => {
                 const msg = JSON.parse(event.data);
                 const stream = msg.stream;
                 if (!stream.includes(symbol)) return;
+                isSyntheticRef.current = false;
                 const payload = msg.data;
                 const currentData = chartDataRef.current;
                 if (currentData.length === 0 && stream.includes('aggTrade')) {
@@ -294,17 +301,32 @@ const App: React.FC = () => {
                         lastCandle.low = Math.min(lastCandle.low, l);
                         lastCandle.close = c;
                     }
+                    setMarketData([...chartDataRef.current]);
                 }
                 if (stream.includes('aggTrade')) {
                     const price = parseFloat(payload.p) - correction;
                     lastCandle.close = price;
                     lastCandle.high = Math.max(lastCandle.high, price);
                     lastCandle.low = Math.min(lastCandle.low, price);
+                    setMarketData([...chartDataRef.current]);
                 }
             } catch (e) { }
         };
-        ws.onerror = () => { if (isActive() && chartDataRef.current.length === 0) generateSyntheticData(asset, timeframe); };
-      } catch (err) { if(isActive()) generateSyntheticData(asset, timeframe); }
+        ws.onerror = () => { 
+            if (isActive()) {
+                isSyntheticRef.current = true;
+                if (chartDataRef.current.length === 0) generateSyntheticData(asset, timeframe); 
+            }
+        };
+        ws.onclose = () => {
+            if (isActive()) isSyntheticRef.current = true;
+        };
+      } catch (err) { 
+          if(isActive()) {
+              isSyntheticRef.current = true;
+              generateSyntheticData(asset, timeframe); 
+          }
+      }
   };
 
   const connectDerivEngine = (asset: Asset, timeframe: TimeFrame, isActive: () => boolean) => {
@@ -327,19 +349,34 @@ const App: React.FC = () => {
               try {
                   const msg = JSON.parse(event.data);
                   if (msg.msg_type === 'candles' && msg.candles) {
+                      isSyntheticRef.current = false;
                       const candles: Candle[] = msg.candles.map((c: any) => ({ time: c.epoch * 1000, open: c.open, high: c.high, low: c.low, close: c.close })).filter((c: any) => !isNaN(c.close)); 
                       const stitched = ensureDataLength(candles, 5000, timeframe);
                       chartDataRef.current = stitched;
                       setMarketData(stitched);
                   }
                   else if (msg.msg_type === 'ohlc' && msg.ohlc) {
+                      isSyntheticRef.current = false;
                       const c = msg.ohlc;
                       updateChartData({ time: c.open_time * 1000, open: parseFloat(c.open), high: parseFloat(c.high), low: parseFloat(c.low), close: parseFloat(c.close)});
                   }
               } catch (e) { }
           };
-          ws.onerror = (e) => { if(isActive()) generateSyntheticData(asset, timeframe); };
-      } catch (e) { if(isActive()) generateSyntheticData(asset, timeframe); }
+          ws.onerror = (e) => { 
+              if(isActive()) {
+                  isSyntheticRef.current = true;
+                  generateSyntheticData(asset, timeframe); 
+              }
+          };
+          ws.onclose = () => {
+              if (isActive()) isSyntheticRef.current = true;
+          };
+      } catch (e) { 
+          if(isActive()) {
+              isSyntheticRef.current = true;
+              generateSyntheticData(asset, timeframe); 
+          }
+      }
   };
 
   const connectForexEngine = (asset: Asset, timeframe: TimeFrame, signal: AbortSignal, isActive: () => boolean) => {
@@ -367,12 +404,18 @@ const App: React.FC = () => {
             if(!isActive()) return;
             const json = await res.json();
             if (json.Response === 'Success' && json.Data?.Data?.length > 0) {
+                 isSyntheticRef.current = false;
                  const candles = json.Data.Data.map((d: any) => ({ time: d.time * 1000, open: d.open, high: d.high, low: d.low, close: d.close })).filter((c: any) => c.close > 0);
                 const stitched = ensureDataLength(candles, 5000, timeframe);
                 chartDataRef.current = stitched;
-                if(chartDataRef.current.length === 0 || chartDataRef.current.length < stitched.length) setMarketData(stitched);
+                setMarketData(stitched);
             }
-        } catch (err) { if ((err as Error).name !== 'AbortError' && isActive()) generateSyntheticData(asset, timeframe); }
+        } catch (err) { 
+            if ((err as Error).name !== 'AbortError' && isActive()) {
+                isSyntheticRef.current = true;
+                generateSyntheticData(asset, timeframe); 
+            }
+        }
     };
     fetchData();
     const interval = setInterval(fetchData, 1000); 
@@ -414,29 +457,36 @@ const App: React.FC = () => {
          price = close;
       }
       chartDataRef.current = candles;
+      isSyntheticRef.current = true;
       setMarketData(candles);
   };
 
   useEffect(() => {
     let animationFrameId: number;
     const loop = (timestamp: number) => {
-        if (timestamp - lastUpdateRef.current < 30) {
+        if (timestamp - lastUpdateRef.current < 50) {
             animationFrameId = requestAnimationFrame(loop);
             return;
         }
         lastUpdateRef.current = timestamp;
         const currentData = chartDataRef.current;
-        const isBinanceAsset = [Asset.BTCUSD, Asset.ETHUSD, Asset.SOLUSD, Asset.BNBUSD].includes(currentAssetRef.current);
-        if (isBinanceAsset && currentData.length > 0) {
-             setMarketData([...currentData]); 
-        } 
-        else if (currentData.length > 0) {
+        
+        if (currentData.length > 0) {
             const lastCandle = currentData[currentData.length - 1];
-            let volatility = 0.00001; 
+            let volatility = 0.00002; 
+            const isCrypto = [Asset.BTCUSD, Asset.ETHUSD, Asset.SOLUSD, Asset.BNBUSD].includes(currentAssetRef.current);
+            
             if (currentAssetRef.current.includes('XAU')) volatility = 0.08;
             else if (currentAssetRef.current.includes('XAG')) volatility = 0.005;
             else if (currentAssetRef.current.includes('JPY')) volatility = 0.01;
-            else volatility = 0.00002;
+            else if (isCrypto) {
+                if (currentAssetRef.current.includes('BTC')) volatility = 3.5;
+                else if (currentAssetRef.current.includes('ETH')) volatility = 0.8;
+                else if (currentAssetRef.current.includes('BNB')) volatility = 0.15;
+                else if (currentAssetRef.current.includes('SOL')) volatility = 0.08;
+            }
+            else volatility = 0.00005;
+            
             const noise = (Math.random() - 0.5) * volatility;
             const newClose = lastCandle.close + noise;
             const updatedCandle = { ...lastCandle, close: newClose, high: Math.max(lastCandle.high, newClose), low: Math.min(lastCandle.low, newClose) };

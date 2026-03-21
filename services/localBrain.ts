@@ -147,12 +147,23 @@ export const analyzeLocalMarket = (
   let rrRatioVal = 3.0;
   let rrLabel = "1:3";
 
-  if (timeframe === 'M1') { minScore = 8; rrRatioVal = 3.0; rrLabel = "1:3"; }
-  else if (timeframe === 'M5') { minScore = 7; rrRatioVal = 3.0; rrLabel = "1:3"; }
-  else if (timeframe === 'M15') { minScore = 7; rrRatioVal = 3.0; rrLabel = "1:3"; }
-  else if (timeframe === 'M30') { minScore = 6; rrRatioVal = 3.0; rrLabel = "1:3"; }
-  else if (timeframe === 'H1') { minScore = 6; rrRatioVal = 4.0; rrLabel = "1:4"; }
-  else if (timeframe === 'H4' || timeframe === 'D1') { minScore = 5; rrRatioVal = 4.0; rrLabel = "1:4"; }
+  const isCrypto = [Asset.BTCUSD, Asset.ETHUSD, Asset.SOLUSD, Asset.BNBUSD].includes(asset);
+
+  if (isCrypto) {
+      if (timeframe === 'M1') { minScore = 3; rrRatioVal = 1.5; rrLabel = "1:1.5"; }
+      else if (timeframe === 'M5') { minScore = 4; rrRatioVal = 2.0; rrLabel = "1:2"; }
+      else if (timeframe === 'M15') { minScore = 5; rrRatioVal = 2.5; rrLabel = "1:2.5"; }
+      else if (timeframe === 'M30') { minScore = 6; rrRatioVal = 3.0; rrLabel = "1:3"; }
+      else if (timeframe === 'H1') { minScore = 6; rrRatioVal = 4.0; rrLabel = "1:4"; }
+      else if (timeframe === 'H4' || timeframe === 'D1') { minScore = 5; rrRatioVal = 4.0; rrLabel = "1:4"; }
+  } else {
+      if (timeframe === 'M1') { minScore = 8; rrRatioVal = 3.0; rrLabel = "1:3"; }
+      else if (timeframe === 'M5') { minScore = 7; rrRatioVal = 3.0; rrLabel = "1:3"; }
+      else if (timeframe === 'M15') { minScore = 7; rrRatioVal = 3.0; rrLabel = "1:3"; }
+      else if (timeframe === 'M30') { minScore = 6; rrRatioVal = 3.0; rrLabel = "1:3"; }
+      else if (timeframe === 'H1') { minScore = 6; rrRatioVal = 4.0; rrLabel = "1:4"; }
+      else if (timeframe === 'H4' || timeframe === 'D1') { minScore = 5; rrRatioVal = 4.0; rrLabel = "1:4"; }
+  }
 
   // 1. LAYER 1: SMC VECTOR (DIRECTION)
   const emaValues = emaState.values || { ema50: current.close, ema200: current.close };
@@ -185,30 +196,31 @@ export const analyzeLocalMarket = (
   if (rsi > 60 && isDowntrend) totalScore -= 2; // Strong supply reaction
 
   // Interpretation (Strict Entry)
-  const currentBodySize = Math.abs(current.close - current.open) / (current.high - current.low);
-  const isStrongConfirmation = currentBodySize >= 0.6;
+  const currentBodySize = Math.abs(current.close - current.open) / ((current.high - current.low) || 1);
+  const isStrongConfirmation = currentBodySize >= (isCrypto ? 0.4 : 0.6); // Relaxed for crypto
+  const isScalping = (timeframe === 'M1' || timeframe === 'M5') && isCrypto;
 
   if (totalScore >= minScore) {
       // Check for retrace to OB/FVG or strong reversal pattern
-      const hasBullishConfirmation = bullishPatterns.length > 0 && isStrongConfirmation;
-      const atBullishLevel = smc.orderBlock === 'BULLISH' || smc.fvg === 'BULLISH' || smc.liquiditySweep === 'SELL_SIDE';
+      const hasBullishConfirmation = bullishPatterns.length > 0 || isStrongConfirmation || (isScalping && current.close > current.open);
+      const atBullishLevel = smc.orderBlock === 'BULLISH' || smc.fvg === 'BULLISH' || smc.liquiditySweep === 'SELL_SIDE' || isScalping;
 
       if (hasBullishConfirmation && atBullishLevel) {
           signal = 'BUY';
-          confidence = Math.min(99, 85 + totalScore);
-          setupType = "HIGH_PROB_BULLISH";
+          confidence = Math.min(99, 75 + (totalScore * 3));
+          setupType = isScalping ? "SCALPING_BULLISH" : "HIGH_PROB_BULLISH";
       } else {
           signal = 'WAIT';
           setupType = "BULLISH_WAIT_CONFIRMATION";
       }
   } else if (totalScore <= -minScore) {
-      const hasBearishConfirmation = bearishPatterns.length > 0 && isStrongConfirmation;
-      const atBearishLevel = smc.orderBlock === 'BEARISH' || smc.fvg === 'BEARISH' || smc.liquiditySweep === 'BUY_SIDE';
+      const hasBearishConfirmation = bearishPatterns.length > 0 || isStrongConfirmation || (isScalping && current.close < current.open);
+      const atBearishLevel = smc.orderBlock === 'BEARISH' || smc.fvg === 'BEARISH' || smc.liquiditySweep === 'BUY_SIDE' || isScalping;
 
       if (hasBearishConfirmation && atBearishLevel) {
           signal = 'SELL';
-          confidence = Math.min(99, 85 + Math.abs(totalScore));
-          setupType = "HIGH_PROB_BEARISH";
+          confidence = Math.min(99, 75 + (Math.abs(totalScore) * 3));
+          setupType = isScalping ? "SCALPING_BEARISH" : "HIGH_PROB_BEARISH";
       } else {
           signal = 'WAIT';
           setupType = "BEARISH_WAIT_CONFIRMATION";

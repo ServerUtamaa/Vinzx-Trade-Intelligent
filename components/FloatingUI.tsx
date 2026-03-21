@@ -82,9 +82,9 @@ interface MembershipPackage {
 }
 
 const MEMBERSHIP_PACKAGES: MembershipPackage[] = [
-    { id: 'MEM_BASIC', tier: 'BASIC', subtitle: 'Essential Kit', durationLabel: '/ 7 Hari', price: 100000, originalPrice: 140000, saveLabel: 'HEMAT 40.000', features: ["Full akses Bebas Analisa Unlimited", "Akses SMC & Candlestick Pattern", "Validasi Entry EMA 50/200", "Cocok untuk Pemula Belajar"], theme: 'BLUE' },
-    { id: 'MEM_VIP', tier: 'VIP', subtitle: 'Advanced Tools', durationLabel: '/ 14 Hari', price: 150000, originalPrice: 240000, saveLabel: 'HEMAT 90K', features: ["Full akses Bebas Analisa Unlimited", "Prioritas Server (Analisa Lebih Cepat)", "Akses Fitur Swing Trade & Day Trade", "Support Setup Scalping High Winrate"], theme: 'PURPLE' },
-    { id: 'MEM_MONTHLY', tier: 'MONTHLY', subtitle: 'Premium Access', durationLabel: '/ 30 Hari', price: 230000, originalPrice: 420000, saveLabel: 'HEMAT 190K', features: ["Full akses Bebas Analisa Unlimited", "Bisa Baca Manipulasi Bandar Besar", "Kombinasi Data Multi-Timeframe (H4 + M15 + Konfimasi Entry M5)", "Harga Termurah (Tp Ratusan Pips Per -1 Analisa Dan Sl Maksimal 70Pips)"], theme: 'GOLD', isBestValue: true }
+    { id: 'MEM_BASIC', tier: 'BASIC', subtitle: 'Essential Kit', durationLabel: '/ 7 Hari', price: 80000, originalPrice: 120000, saveLabel: 'HEMAT 40.000', features: ["Full akses Bebas Analisa Unlimited", "Akses SMC & Candlestick Pattern", "Validasi Entry EMA 50/200", "Cocok untuk Pemula Belajar"], theme: 'BLUE' },
+    { id: 'MEM_VIP', tier: 'VIP', subtitle: 'Advanced Tools', durationLabel: '/ 14 Hari', price: 130000, originalPrice: 220000, saveLabel: 'HEMAT 90K', features: ["Full akses Bebas Analisa Unlimited", "Prioritas Server (Analisa Lebih Cepat)", "Akses Fitur Swing Trade & Day Trade", "Support Setup Scalping High Winrate"], theme: 'PURPLE' },
+    { id: 'MEM_MONTHLY', tier: 'MONTHLY', subtitle: 'Premium Access', durationLabel: '/ 30 Hari', price: 210000, originalPrice: 400000, saveLabel: 'HEMAT 190K', features: ["Full akses Bebas Analisa Unlimited", "Bisa Baca Manipulasi Bandar Besar", "Kombinasi Data Multi-Timeframe (H4 + M15 + Konfimasi Entry M5)", "Harga Termurah (Tp Ratusan Pips Per -1 Analisa Dan Sl Maksimal 70Pips)"], theme: 'GOLD', isBestValue: true }
 ];
 
 const HISTORY_FILTERS = [
@@ -120,11 +120,21 @@ const FloatingUI: React.FC<FloatingUIProps> = ({
   const [membershipCode, setMembershipCode] = useState("");
   const [isActivatingCode, setIsActivatingCode] = useState(false);
   const [codeMessage, setCodeMessage] = useState<{ text: string, type: 'SUCCESS' | 'ERROR' } | null>(null);
+  const [installPrompt, setInstallPrompt] = useState<any>(null);
 
   // REALTIME COUNTDOWN STATE
   const [timeLeftDisplay, setTimeLeftDisplay] = useState("00:00:00");
 
   useEffect(() => { if (analysis) { setShowAnalysisLog(true); setFeedbackSubmitted(false); } }, [analysis]);
+
+  useEffect(() => {
+    const handleBeforeInstallPrompt = (e: Event) => {
+      e.preventDefault();
+      setInstallPrompt(e);
+    };
+    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    return () => window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+  }, []);
 
   // COUNTDOWN EFFECT
   useEffect(() => {
@@ -192,43 +202,15 @@ const FloatingUI: React.FC<FloatingUIProps> = ({
 
       const inputCode = membershipCode.trim().toLowerCase();
 
-      const ADMIN_CODES = [
-          'adm_alchm1_: 3a1f8e9b2c4d5a6b7c8d9e0f1a2b3c4d',
-          'adm_alchm2_: 5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b',
-          'adm_alchm3_: 1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d',
-          'adm_alchm4_: 7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2b'
-      ];
-
-      if (ADMIN_CODES.includes(inputCode)) {
-          if (isCodeUsed(inputCode)) {
-              setCodeMessage({ text: "KODE INI SUDAH PERNAH DIGUNAKAN!", type: 'ERROR' });
-          } else {
-              try {
-                  const success = markCodeAsUsed(inputCode, userSession.username);
-                  if (success) {
-                      // Set role to DEV and membership to 1 Year (365 Days)
-                      await updateUserRole(userSession.username, 'DEV');
-                      await updateUserMembership(userSession.username, 'VIP', 365);
-                      setCodeMessage({ text: "AKSES OFFICER BERHASIL DIAKTIFKAN! (1 TAHUN)\nSilakan Muat Ulang Halaman.", type: 'SUCCESS' });
-                      setMembershipCode("");
-                  } else {
-                      setCodeMessage({ text: "KODE SUDAH DIGUNAKAN DI PERANGKAT LAIN!", type: 'ERROR' });
-                  }
-              } catch (e) {
-                  setCodeMessage({ text: "Gagal mengaktifkan kode. Coba lagi.", type: 'ERROR' });
-              }
-          }
-      } else if (ONE_WEEK_CODES.some(code => inputCode.includes(code.toLowerCase()))) {
-          // Find the actual code they matched to mark it as used
-          const matchedCode = ONE_WEEK_CODES.find(code => inputCode.includes(code.toLowerCase())) || inputCode;
+      // 1. Check ONE_WEEK_CODES (7 Days)
+      if (ONE_WEEK_CODES.some(code => inputCode === code.toLowerCase() || inputCode.includes(code.toLowerCase()))) {
+          const matchedCode = ONE_WEEK_CODES.find(code => inputCode === code.toLowerCase() || inputCode.includes(code.toLowerCase()))!;
           
           if (isCodeUsed(matchedCode)) {
               setCodeMessage({ text: "KODE INI SUDAH PERNAH DIGUNAKAN!", type: 'ERROR' });
           } else {
               try {
-                  // Activate 1 Week (7 Days)
                   const success = markCodeAsUsed(matchedCode, userSession.username);
-                  
                   if (success) {
                       await updateUserMembership(userSession.username, 'WEEKLY', 7);
                       setCodeMessage({ text: "MEMBERSHIP BERHASIL DIAKTIFKAN! (1 MINGGU)\nMasa pakai berjalan di latar belakang pada Akun Google & Perangkat ini.", type: 'SUCCESS' });
@@ -240,17 +222,16 @@ const FloatingUI: React.FC<FloatingUIProps> = ({
                   setCodeMessage({ text: "Gagal mengaktifkan kode. Coba lagi.", type: 'ERROR' });
               }
           }
-      } else if (TWO_WEEK_CODES.some(code => inputCode.includes(code.toLowerCase()))) {
-          // Find the actual code they matched to mark it as used
-          const matchedCode = TWO_WEEK_CODES.find(code => inputCode.includes(code.toLowerCase())) || inputCode;
+      } 
+      // 2. Check TWO_WEEK_CODES (14 Days)
+      else if (TWO_WEEK_CODES.some(code => inputCode === code.toLowerCase() || inputCode.includes(code.toLowerCase()))) {
+          const matchedCode = TWO_WEEK_CODES.find(code => inputCode === code.toLowerCase() || inputCode.includes(code.toLowerCase()))!;
           
           if (isCodeUsed(matchedCode)) {
               setCodeMessage({ text: "KODE INI SUDAH PERNAH DIGUNAKAN!", type: 'ERROR' });
           } else {
               try {
-                  // Activate 2 Weeks (14 Days)
                   const success = markCodeAsUsed(matchedCode, userSession.username);
-                  
                   if (success) {
                       await updateUserMembership(userSession.username, 'BIWEEKLY', 14);
                       setCodeMessage({ text: "MEMBERSHIP BERHASIL DIAKTIFKAN! (2 MINGGU)\nMasa pakai berjalan di latar belakang pada Akun Google & Perangkat ini.", type: 'SUCCESS' });
@@ -262,17 +243,16 @@ const FloatingUI: React.FC<FloatingUIProps> = ({
                   setCodeMessage({ text: "Gagal mengaktifkan kode. Coba lagi.", type: 'ERROR' });
               }
           }
-      } else if (MEMBERSHIP_CODES.some(code => inputCode.includes(code.toLowerCase()))) {
-          // Find the actual code they matched to mark it as used
-          const matchedCode = MEMBERSHIP_CODES.find(code => inputCode.includes(code.toLowerCase())) || inputCode;
+      } 
+      // 3. Check MEMBERSHIP_CODES (1 Month / 30 Days)
+      else if (MEMBERSHIP_CODES.some(code => inputCode === code.toLowerCase() || inputCode.includes(code.toLowerCase()))) {
+          const matchedCode = MEMBERSHIP_CODES.find(code => inputCode === code.toLowerCase() || inputCode.includes(code.toLowerCase()))!;
           
           if (isCodeUsed(matchedCode)) {
               setCodeMessage({ text: "KODE INI SUDAH PERNAH DIGUNAKAN!", type: 'ERROR' });
           } else {
               try {
-                  // Activate 1 Month (30 Days)
                   const success = markCodeAsUsed(matchedCode, userSession.username);
-                  
                   if (success) {
                       await updateUserMembership(userSession.username, 'MONTHLY', 30);
                       setCodeMessage({ text: "MEMBERSHIP BERHASIL DIAKTIFKAN! (1 BULAN)\nMasa pakai berjalan di latar belakang pada Akun Google & Perangkat ini.", type: 'SUCCESS' });
@@ -486,6 +466,15 @@ const FloatingUI: React.FC<FloatingUIProps> = ({
     );
   };
 
+  const handleInstallClick = async () => {
+    if (!installPrompt) return;
+    installPrompt.prompt();
+    const { outcome } = await installPrompt.userChoice;
+    if (outcome === 'accepted') {
+      setInstallPrompt(null);
+    }
+  };
+
   return (
     <div className="relative w-full h-full bg-[#050505] overflow-hidden flex flex-col font-sans">
       {/* NOTCH: Moved outside scroll view to prevent Z-Index/Layout issues */}
@@ -502,17 +491,24 @@ const FloatingUI: React.FC<FloatingUIProps> = ({
                   </div>
                   <div className="relative inline-block mt-1"><button onClick={() => setShowAssetSelector(true)} className="flex items-center gap-2 bg-[#0f0f11] border border-purple-500/40 hover:border-purple-500 shadow-[0_0_20px_-5px_rgba(168,85,247,0.4)] hover:shadow-[0_0_25px_-5px_rgba(168,85,247,0.6)] px-3 py-1.5 rounded-lg transition-all duration-300 group"><span className="text-xs font-black text-white tracking-wider group-hover:text-purple-300 transition-colors">{currentAsset}</span><span className="w-px h-3 bg-zinc-700"></span><span className="text-[9px] text-purple-400 font-bold uppercase">{ASSET_DETAILS[currentAsset]?.name || "ASSET"}</span><span className="text-[10px] text-zinc-500 ml-1">▼</span></button></div>
               </div>
-              <button onClick={() => {
-                  if (!userSession.isLoggedIn) {
-                      onRequestAuth();
-                  } else {
-                      setShowDashboard(true);
-                  }
-              }} className="relative z-[100] w-10 h-10 bg-[#111] border border-zinc-800 rounded-xl flex flex-col items-center justify-center gap-1.5 hover:border-zinc-600 transition-all group pointer-events-auto cursor-pointer">
-                  <div className="w-5 h-0.5 bg-zinc-500 group-hover:bg-white transition-colors rounded-full"></div>
-                  <div className="w-3 h-0.5 bg-zinc-500 group-hover:bg-white transition-colors rounded-full ml-2"></div>
-                  <div className="w-5 h-0.5 bg-zinc-500 group-hover:bg-white transition-colors rounded-full"></div>
-              </button>
+              <div className="flex items-center gap-2 pointer-events-auto">
+                {installPrompt && (
+                  <button onClick={handleInstallClick} className="relative z-[100] w-10 h-10 bg-green-900/20 border border-green-500/30 rounded-xl flex items-center justify-center text-green-500 hover:bg-green-500 hover:text-white transition-all group" title="Install App">
+                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+                  </button>
+                )}
+                <button onClick={() => {
+                    if (!userSession.isLoggedIn) {
+                        onRequestAuth();
+                    } else {
+                        setShowDashboard(true);
+                    }
+                }} className="relative z-[100] w-10 h-10 bg-[#111] border border-zinc-800 rounded-xl flex flex-col items-center justify-center gap-1.5 hover:border-zinc-600 transition-all group cursor-pointer">
+                    <div className="w-5 h-0.5 bg-zinc-500 group-hover:bg-white transition-colors rounded-full"></div>
+                    <div className="w-3 h-0.5 bg-zinc-500 group-hover:bg-white transition-colors rounded-full ml-2"></div>
+                    <div className="w-5 h-0.5 bg-zinc-500 group-hover:bg-white transition-colors rounded-full"></div>
+                </button>
+              </div>
           </div>
           <div className="px-5 mb-1 flex items-center gap-2 overflow-x-auto no-scrollbar">{['M1','M5','M15','M30','H1','H4','D1'].map((tf) => (<button key={tf} onClick={() => onTimeframeChange(tf as TimeFrame)} className={`min-w-[32px] h-[28px] flex items-center justify-center text-[10px] font-bold rounded-lg transition-all ${currentTimeframe === tf ? 'bg-[#003d2e] text-[#00ff9d] border border-[#00ff9d]/30 shadow-[0_0_10px_-4px_#00ff9d]' : 'text-zinc-600 hover:text-zinc-300 hover:bg-white/5'}`}>{tf}</button>))}</div>
           <div className={`relative w-full border-y border-zinc-900 bg-[#020202] touch-none transition-all duration-500 ease-in-out ${showAnalysisLog && analysis ? 'h-[280px]' : 'h-[460px]'}`}>{children}</div>

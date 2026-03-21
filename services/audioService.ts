@@ -62,6 +62,8 @@ async function decodeAudioData(
 }
 
 // --- MAIN SERVICE CLASS ---
+const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+
 class GeminiAudioService {
     private audioCtx: AudioContext | null = null;
 
@@ -75,10 +77,8 @@ class GeminiAudioService {
     }
 
     // 1. Generate Audio dari Google Gemini
-    public async generate(text: string, gender: VoiceGender): Promise<string | null> {
+    public async generate(text: string, gender: VoiceGender, retries = 2): Promise<string | null> {
         try {
-            const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-            
             // Konfigurasi Suara
             // MALE -> Fenrir (Deep, Authority, Bold)
             // FEMALE -> Kore (Soft, Elegant, Soothing)
@@ -112,6 +112,11 @@ class GeminiAudioService {
 
         } catch (error) {
             console.error("Gemini Audio Error:", error);
+            if (retries > 0) {
+                console.warn(`Retrying audio generation... (${retries} left)`);
+                await new Promise(r => setTimeout(r, 1000));
+                return this.generate(text, gender, retries - 1);
+            }
             return null;
         }
     }

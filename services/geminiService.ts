@@ -1,4 +1,5 @@
 
+import OpenAI from "openai";
 import { GoogleGenAI, Type, Schema, ThinkingLevel } from "@google/genai";
 import { Asset, Candle, AnalysisResult, GeminiResponseSchema, TradeFeedback, TimeFrame } from "../types";
 import { SYSTEM_INSTRUCTION } from "../constants";
@@ -51,21 +52,74 @@ const responseSchema: Schema = {
   required: ["signal", "confidence", "entry", "sl", "tp", "reasoning", "concepts", "prediction", "next_price_prediction", "trend_prediction", "drl_metrics"]
 };
 
+const responseSchemaString = `
+{
+  "signal": "BUY" | "SELL" | "WAIT",
+  "confidence": number (0.0 to 1.0),
+  "entry": number,
+  "sl": number,
+  "tp": number,
+  "rr": string,
+  "reasoning": string[] (exactly 14 strings explaining the DRL state evaluation, 30-method confluence, and SMC alignment),
+  "concepts": string[] (List the technical methods and SMC concepts detected),
+  "prediction": string (Predict the next 10-25 candles movement),
+  "next_price_prediction": number,
+  "trend_prediction": "BULLISH" | "BEARISH" | "RANGING",
+  "drl_metrics": {
+    "state_value": number (-1.0 to 1.0),
+    "advantage": number,
+    "buy_prob": number,
+    "sell_prob": number,
+    "wait_prob": number
+  }
+}
+`;
+
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
-const callWithRetry = async (fn: () => Promise<any>, retries = 3, delay = 1000): Promise<any> => {
+const callWithRetry = async (fn: () => Promise<any>, retries = 5, delay = 2000): Promise<any> => {
   try {
     return await fn();
   } catch (error: any) {
-    const isRateLimit = error?.status === 429 || error?.error?.code === 429 || error?.error?.status === "RESOURCE_EXHAUSTED";
-    if (retries > 0 && isRateLimit) {
-      console.warn(`Rate limit hit, retrying in ${delay}ms...`);
+    let statusCode = error?.status || error?.error?.code;
+    let statusText = error?.error?.status || "";
+    let message = error?.message || "";
+
+    if (typeof error === 'string' && error.startsWith('{')) {
+      try {
+        const parsed = JSON.parse(error);
+        statusCode = parsed.error?.code || statusCode;
+        statusText = parsed.error?.status || statusText;
+        message = parsed.error?.message || message;
+      } catch (e) {}
+    } else if (message.startsWith('{')) {
+      try {
+        const parsed = JSON.parse(message);
+        statusCode = parsed.error?.code || statusCode;
+        statusText = parsed.error?.status || statusText;
+        message = parsed.error?.message || message;
+      } catch (e) {}
+    }
+    
+    const isRateLimit = statusCode === 429 || statusText === "RESOURCE_EXHAUSTED";
+    const isTransientError = statusCode === 500 || statusCode === 503 || statusCode === 504 || statusText === "INTERNAL" || statusText === "UNAVAILABLE" || statusText === "UNKNOWN";
+    const isNetworkError = message.toLowerCase().includes("xhr error") || message.toLowerCase().includes("fetch error") || message.toLowerCase().includes("network error") || message.toLowerCase().includes("rpc failed");
+
+    if (retries > 0 && (isRateLimit || isTransientError || isNetworkError)) {
+      const reason = isRateLimit ? "Rate limit" : (isTransientError ? "Transient server error" : "Network error");
+      console.warn(`${reason} hit (${statusCode || statusText}), retrying in ${delay}ms... (Attempts left: ${retries})`);
       await sleep(delay);
       return callWithRetry(fn, retries - 1, delay * 2);
     }
     throw error;
   }
 };
+
+const openai = new OpenAI({
+  apiKey: "sk-6c0deb20348448f7a055cbbdedbfa3d7",
+  baseURL: "https://api.deepseek.com",
+  dangerouslyAllowBrowser: true
+});
 
 export const analyzeMarketStructure = async (
   asset: Asset,
@@ -76,8 +130,6 @@ export const analyzeMarketStructure = async (
   lossStreak: number = 0
 ): Promise<AnalysisResult> => {
   try {
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-    
     const currentPrice = candles[candles.length - 1].close;
     const rsi = calculateRSI(candles, 14);
     const emaState = analyzeEMACondition(candles);
@@ -195,25 +247,42 @@ export const analyzeMarketStructure = async (
     `;
 
     try {
-        const response = await callWithRetry(() => ai.models.generateContent({
-          model: 'gemini-3.1-pro-preview', 
-          contents: prompt,
-          config: {
-            systemInstruction: SYSTEM_INSTRUCTION,
-            responseMimeType: "application/json",
-            responseSchema: responseSchema,
-            thinkingConfig: { thinkingLevel: ThinkingLevel.HIGH }, // Max Intelligence for DRL Neuron
-            temperature: 0.1, // Precision mode
-          }
+        const response = await callWithRetry(() => openai.chat.completions.create({
+          model: 'deepseek-chat', 
+          response_format: { type: "json_object" },
+          temperature: 0.1,
+          messages: [
+            {
+              role: "system",
+              content: `${SYSTEM_INSTRUCTION}\n\nYou MUST return your response in the following JSON format:\n${responseSchemaString}`
+            },
+            {
+              role: "user",
+              content: prompt
+            }
+          ]
         }));
         
-        if (!response.text) throw new Error("Empty response");
-        return parseResponse(response.text, timeframe);
+        const resultText = response.choices[0]?.message?.content;
+        if (!resultText) throw new Error("Empty response");
+        return parseResponse(resultText, timeframe);
 
-    } catch (modelError) {
-        console.error("DRL Core failed, engaging Fallback Neural Net:", modelError);
+    } catch (modelError: any) {
+        console.warn("DeepSeek Core failed (likely 402 Insufficient Balance), engaging Fallback Neural Net (Gemini)...");
+        
+        // Check if it's a 402 Insufficient Balance error from DeepSeek
+        const isInsufficientBalance = modelError?.status === 402 || 
+                                      modelError?.error?.code === 402 ||
+                                      (typeof modelError?.message === 'string' && modelError.message.includes('402'));
+
+        if (isInsufficientBalance) {
+            console.warn("DeepSeek API Key has insufficient balance (402). Falling back to Gemini.");
+        }
+
+        // Fallback to Gemini
+        const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || process.env.API_KEY });
         const fallbackResponse = await callWithRetry(() => ai.models.generateContent({
-            model: 'gemini-2.5-flash',
+            model: 'gemini-3.1-pro-preview',
             contents: prompt,
             config: {
                 systemInstruction: SYSTEM_INSTRUCTION,
@@ -225,11 +294,16 @@ export const analyzeMarketStructure = async (
         return parseResponse(fallbackResponse.text || "{}", timeframe);
     }
 
-  } catch (error) {
-    console.error("DRL Analysis Failed:", error);
+  } catch (error: any) {
+    const isRateLimit = error?.status === 429 || error?.error?.code === 429 || error?.message?.includes("RESOURCE_EXHAUSTED");
+    if (isRateLimit) {
+      console.warn("DRL Analysis: Quota exceeded. Please check your billing plan or wait for the quota to reset.");
+    } else {
+      console.error("DRL Analysis Failed:", error);
+    }
     return {
       signal: 'WAIT', confidence: 0, entryPrice: candles[candles.length - 1].close, stopLoss: 0, takeProfit: 0, riskRewardRatio: "0:0",
-      reasoning: Array(14).fill("SYSTEM ERROR: NEURAL DISCONNECT."), smcConceptsFound: [], timestamp: new Date().toLocaleTimeString(), timeframe: timeframe,
+      reasoning: Array(14).fill(isRateLimit ? "SYSTEM: QUOTA EXCEEDED. WAITING FOR RESET." : "SYSTEM ERROR: NEURAL DISCONNECT."), smcConceptsFound: [], timestamp: new Date().toLocaleTimeString(), timeframe: timeframe,
       drlMetrics: { stateValue: 0, advantage: 0, buyProb: 0, sellProb: 0, waitProb: 1 }
     };
   }
