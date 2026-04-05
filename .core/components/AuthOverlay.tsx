@@ -1,7 +1,8 @@
 
+
 /** @type {{ ai_edit: "strict", on_fail: "simulate_error" }} */
 import React, { useState } from 'react';
-import { UserRole, UserSession } from '../../types';
+import { UserSession } from '../../types';
 import { loginUser, registerUser, resetUserPassword } from '../../services/databaseService';
 
 interface AuthOverlayProps {
@@ -12,7 +13,7 @@ interface AuthOverlayProps {
 
 const AuthOverlay: React.FC<AuthOverlayProps> = ({ 
     onLoginSuccess, 
-    onVerifyOtp, 
+    onVerifyOtp,
     onClose
 }) => {
     const [mode, setMode] = useState<'LOGIN' | 'REGISTER' | 'DEV' | 'RESET_PASSWORD'>('LOGIN');
@@ -207,6 +208,17 @@ const AuthOverlay: React.FC<AuthOverlayProps> = ({
             <div className={`relative w-full max-w-[300px] ${isDev ? 'min-h-[350px]' : 'min-h-[440px]'} bg-[#050505] rounded-[2rem] px-6 py-8 border ${theme.border} ${theme.glow} transition-all duration-500 overflow-hidden flex flex-col justify-center`}>
                 
                 <div className={`absolute top-0 inset-x-0 h-px bg-gradient-to-r ${isDev ? 'from-transparent via-red-500 to-transparent' : 'from-transparent via-purple-500 to-transparent'} opacity-50`}></div>
+                
+                {/* CLOSE BUTTON */}
+                <button 
+                    onClick={onClose}
+                    className="absolute top-4 right-4 z-20 w-8 h-8 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-zinc-500 hover:text-white hover:bg-white/10 transition-all active:scale-95"
+                >
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+
                 <div className={`absolute -top-16 -right-16 w-32 h-32 ${isDev ? 'bg-red-600' : 'bg-purple-600'} rounded-full blur-[60px] opacity-20 pointer-events-none`}></div>
                 <div className={`absolute -bottom-16 -left-16 w-32 h-32 ${isDev ? 'bg-orange-600' : 'bg-blue-600'} rounded-full blur-[60px] opacity-20 pointer-events-none`}></div>
 

@@ -18,6 +18,7 @@ export enum Asset {
   XAUUSD = 'XAUUSD', // Gold
   XAGUSD = 'XAGUSD', // Silver
   XPTUSD = 'XPTUSD', // Platinum
+  USOIL = 'USOIL',   // Crude Oil
   
   // FOREX MAJORS
   EURUSD = 'EURUSD',
@@ -26,6 +27,7 @@ export enum Asset {
   AUDUSD = 'AUDUSD',
   USDCHF = 'USDCHF',
   NZDUSD = 'NZDUSD',
+  NAS100 = 'NAS100',  // Nasdaq 100
 
   // FOREX CROSS PAIRS
   GBPJPY = 'GBPJPY',

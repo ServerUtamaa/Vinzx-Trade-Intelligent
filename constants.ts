@@ -22,30 +22,35 @@ MISSION: ZERO-FLOATING PRECISION ENTRIES, 83-98% ACCURACY, RR 1:3 TO 5:20
 6. Order Block (OB): Candle terakhir sebelum BOS/CHoCH. Area entry institusi.
 7. Fair Value Gap (FVG): Celah ketidakseimbangan harga yang impulsif. Target pullback.
 8. Premium & Discount Zone: BUY hanya di Discount (<50%), SELL hanya di Premium (>50%).
-9. Mitigation Block: Harga kembali menyentuh OB.
-10. Inducement: False breakout untuk menjebak trader sebelum pergerakan asli.
+9. Supply & Demand (SND): Pola RBR, DBD, RBD, DBR sebagai zona reaksi kunci.
+10. Liquidity Types: Equal Highs (EQH), Equal Lows (EQL), Trendline Liquidity.
+11. Candle Range Theory (CRT): Fase Accumulation, Manipulation Sweep, Distribution.
+12. Fibonacci OTE: Optimal Trade Entry di level 0.618, 0.786, 0.886.
+13. Pivot Points: PP, R1, R2, S1, S2 sebagai konfluensi level psikologis.
+14. Mitigation Block: Harga kembali menyentuh OB.
+15. Inducement: False breakout untuk menjebak trader sebelum pergerakan asli.
 
 ### 🕯️ BAGIAN II: CANDLESTICK & PRICE ACTION (TIMING)
-11. Single Candlestick: Long Wick (penolakan), Marubozu (impulse).
-12. Reversal Pattern: Hammer/Pin Bar, Shooting Star, Engulfing. WAJIB muncul di area SMC (OB/FVG).
-13. Continuation Pattern: Mengonfirmasi koreksi selesai.
-14. Gap Candlestick: Reaksi harga terhadap gap/FVG.
-15. SMC-Specific: Liquidity Grab Candle (wick panjang), Impulse Candle.
-16. Candlestick sebagai Timing: Hanya memberi sinyal KAPAN eksekusi dilakukan di area SMC.
+16. Single Candlestick: Long Wick (penolakan), Marubozu (impulse).
+17. Reversal Pattern: Hammer/Pin Bar, Shooting Star, Engulfing. WAJIB muncul di area SMC (OB/FVG).
+18. Continuation Pattern: Mengonfirmasi koreksi selesai.
+19. Gap Candlestick: Reaksi harga terhadap gap/FVG.
+20. SMC-Specific: Liquidity Grab Candle (wick panjang), Impulse Candle.
+21. Candlestick sebagai Timing: Hanya memberi sinyal KAPAN eksekusi dilakukan di area SMC.
 
 ### ⚙️ BAGIAN III: AI TRADING LOGIC & EKSEKUSI
-17. Market Condition: Abaikan sinyal BUY di pasar Bearish.
-18. Trend Bias: Ikuti arah tren utama.
-19. Liquidity Mapping: Tandai Swing High/Low sebagai target TP.
-20. Premium-Discount Filter: Wajib filter zona sebelum entry.
-21. OB & FVG Detection: Prioritaskan area ini untuk entry.
-22. Multi-TF & LTF Micro Structure: Cari CHoCH kecil di area HTF.
-23. Candlestick Confirmation: Tunggu pola reversal di area POI.
-24. Entry Execution (Zero Floating): Limit order di OB/FVG. SL 5-10 pips di luar OB/FVG. MAKSIMAL SL 60-80 pips.
-25. Sideways Strategy: Buy di Support, Sell di Resistance setelah Liquidity Sweep.
-26. Risk Management: SL Absolut 60-80 pips. TP Minimal RR 1:3 hingga 5:20.
-27. Trade Filtering: Hindari Kill Zone/News/Spread lebar. RR wajib >= 1:3.
-28. Overtrade Protection: Disiplin ketat.
+22. Market Condition: Abaikan sinyal BUY di pasar Bearish.
+23. Trend Bias: Ikuti arah tren utama.
+24. Liquidity Mapping: Tandai Swing High/Low sebagai target TP.
+25. Premium-Discount Filter: Wajib filter zona sebelum entry.
+26. OB & FVG Detection: Prioritaskan area ini untuk entry.
+27. Multi-TF & LTF Micro Structure: Cari CHoCH kecil di area HTF.
+28. Candlestick Confirmation: Tunggu pola reversal di area POI.
+29. Entry Execution (Zero Floating): Limit order di OB/FVG. SL 5-10 pips di luar OB/FVG. MAKSIMAL SL 60-80 pips.
+30. Sideways Strategy: Buy di Support, Sell di Resistance setelah Liquidity Sweep.
+31. Risk Management: SL Absolut 60-80 pips. TP Minimal RR 1:3 hingga 5:20.
+32. Trade Filtering: Hindari Kill Zone/News/Spread lebar. RR wajib >= 1:3.
+33. Overtrade Protection: Disiplin ketat.
 
 ### 📝 OUTPUT FORMAT (14-POINT PROTOCOL)
 Return strictly 14 strings in Indonesian (Style: Superintelligent, Institutional, Cold, Mathematical).
@@ -58,14 +63,14 @@ Return strictly 14 strings in Indonesian (Style: Superintelligent, Institutional
 
 export const INITIAL_PRICES: Record<Asset, number> = {
   [Asset.BTCUSD]: 0, [Asset.ETHUSD]: 0, [Asset.SOLUSD]: 0, [Asset.BNBUSD]: 0,
-  [Asset.XAUUSD]: 0, [Asset.XAGUSD]: 0, [Asset.XPTUSD]: 0,
-  [Asset.EURUSD]: 0, [Asset.GBPUSD]: 0, [Asset.USDJPY]: 0, [Asset.AUDUSD]: 0, [Asset.USDCHF]: 0, [Asset.NZDUSD]: 0,
+  [Asset.XAUUSD]: 0, [Asset.XAGUSD]: 0, [Asset.XPTUSD]: 0, [Asset.USOIL]: 0,
+  [Asset.EURUSD]: 0, [Asset.GBPUSD]: 0, [Asset.USDJPY]: 0, [Asset.AUDUSD]: 0, [Asset.USDCHF]: 0, [Asset.NZDUSD]: 0, [Asset.NAS100]: 0,
   [Asset.GBPJPY]: 0, [Asset.EURJPY]: 0,
 };
 
 export const VOLATILITY: Record<Asset, number> = {
   [Asset.BTCUSD]: 50.0, [Asset.ETHUSD]: 5.0, [Asset.SOLUSD]: 0.5, [Asset.BNBUSD]: 0.5,
-  [Asset.XAUUSD]: 1.5, [Asset.XAGUSD]: 0.05, [Asset.XPTUSD]: 1.0,
-  [Asset.EURUSD]: 0.0005, [Asset.GBPUSD]: 0.0005, [Asset.USDJPY]: 0.05, [Asset.AUDUSD]: 0.0005, [Asset.USDCHF]: 0.0005, [Asset.NZDUSD]: 0.0005,
+  [Asset.XAUUSD]: 1.5, [Asset.XAGUSD]: 0.05, [Asset.XPTUSD]: 1.0, [Asset.USOIL]: 0.1,
+  [Asset.EURUSD]: 0.0005, [Asset.GBPUSD]: 0.0005, [Asset.USDJPY]: 0.05, [Asset.AUDUSD]: 0.0005, [Asset.USDCHF]: 0.0005, [Asset.NZDUSD]: 0.0005, [Asset.NAS100]: 2.0,
   [Asset.GBPJPY]: 0.05, [Asset.EURJPY]: 0.05,
 };

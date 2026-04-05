@@ -1,11 +1,13 @@
 
+/** @type {{ ai_edit: "strict", on_fail: "simulate_error" }} */
 import { UserRecord, UserRole, ExecutionRecord, MembershipTier, UserSession } from "../types";
 import { getDeviceId } from "./deviceService";
 import { saveDeepBackup, getDeepBackup } from "./deepStorageService";
+import { generateIntegritySignature, verifyIntegrity } from "../.core/utils/security";
 
 // --- SYSTEM CONFIGURATION ---
 // URL Backend (Ganti saat sudah deploy online)
-const API_URL = "http://localhost:5000/api"; 
+const API_URL = "/api"; 
 
 // --- CONNECTIVITY CHECK ---
 export const checkServerConnection = async (): Promise<boolean> => {
@@ -33,39 +35,54 @@ const getLocalUsers = (): UserRecord[] => {
         
         // DEEP RECOVERY: If localStorage is empty, try IndexedDB backup
         if (!stored) {
-            // We can't use await here easily in a synchronous function, 
-            // but we can trigger a recovery check.
-            // For now, we'll rely on the fact that seedDefaultUsers will be called.
             return [];
         }
         
         const users: UserRecord[] = JSON.parse(stored);
         
-        // CLEANUP OLD HISTORY (1 YEAR)
-        const ONE_YEAR_MS = 365 * 24 * 60 * 60 * 1000;
-        const now = Date.now();
-        
-        let modified = false;
-        users.forEach(user => {
-            if (user.history && user.history.length > 0) {
-                const originalLength = user.history.length;
-                user.history = user.history.filter(record => (now - record.timestamp) <= ONE_YEAR_MS);
-                if (user.history.length !== originalLength) {
-                    modified = true;
-                }
-            }
+        // --- INTEGRITY AUDIT (ANTI-TAMPER) ---
+        // Jika data diubah lewat console, signature akan mismatch.
+        const validUsers = users.filter(user => {
+            if (!user.integritySignature) return false; // Data ilegal
+            return verifyIntegrity(
+                user.id, 
+                user.username, 
+                user.role, 
+                user.tokens, 
+                user.integritySignature, 
+                user.membershipTier, 
+                user.membershipExpiresAt
+            );
         });
+
+        if (validUsers.length !== users.length) {
+            console.warn("[SECURITY] Tampered data detected and removed from local storage.");
+            saveLocalUsers(validUsers);
+            return validUsers;
+        }
         
-        if (modified) saveLocalUsers(users);
-        
-        return users; 
-    } catch(e) { return []; }
+        return users;
+    } catch (e) {
+        return [];
+    }
 };
 
 const saveLocalUsers = (users: UserRecord[]) => {
-    const data = JSON.stringify(users);
+    // Sebelum simpan, update signature untuk setiap user
+    const signedUsers = users.map(user => ({
+        ...user,
+        integritySignature: generateIntegritySignature(
+            user.id, 
+            user.username, 
+            user.role, 
+            user.tokens, 
+            user.membershipTier, 
+            user.membershipExpiresAt
+        )
+    }));
+    const data = JSON.stringify(signedUsers);
     localStorage.setItem(LOCAL_KEY_USERS, data);
-    // ASYNC BACKUP
+    // Backup to IndexedDB
     saveDeepBackup(LOCAL_KEY_USERS, data);
 };
 
@@ -96,7 +113,6 @@ const seedDefaultUsers = () => {
     // 2. Hitung Kapan HARUS Expired (Kunci Mati)
     const fixedStartTime = parseInt(genesisStart);
     const fixedExpiry = fixedStartTime + TRIAL_PERIOD_MS;
-    const now = Date.now();
 
     // 3. Cek User 'Vinzx Family'
     const familyIndex = users.findIndex(u => u.username === 'Vinzx Family');

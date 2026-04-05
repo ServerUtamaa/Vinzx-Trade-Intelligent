@@ -1,10 +1,10 @@
 
+
 /** @type {{ ai_edit: "strict", on_fail: "simulate_error" }} */
 import React, { useState, useEffect } from 'react';
 import { Asset, AnalysisResult, TimeFrame, TradeFeedback, VoiceGender, UserSession, ExecutionRecord, MembershipTier } from '../types';
-import { isMarketOpen, getMarketStatusMessage } from '../utils/marketHours';
-import { MEMBERSHIP_CODES, TWO_WEEK_CODES, ONE_WEEK_CODES } from '../.core/constants/membershipCodes';
-import { updateUserMembership, updateUserRole, isCodeUsed, markCodeAsUsed } from '../services/databaseService';
+import { validateMembershipCode } from '../.core/constants/membershipCodes';
+import { updateUserMembership, isCodeUsed, markCodeAsUsed } from '../services/databaseService';
 import FundamentalData from './FundamentalData';
 
 interface FloatingUIProps {
@@ -45,9 +45,9 @@ const MEMBERSHIP_IMAGES = {
 };
 
 const ASSET_GROUPS = [
-  { title: "METAL (COMMODITY)", assets: [Asset.XAUUSD, Asset.XAGUSD, Asset.XPTUSD] },
+  { title: "COMMODITY (METAL & OIL)", assets: [Asset.XAUUSD, Asset.XAGUSD, Asset.XPTUSD, Asset.USOIL] },
   { title: "CRYPTO CURRENCY", assets: [Asset.BTCUSD, Asset.ETHUSD, Asset.SOLUSD, Asset.BNBUSD] },
-  { title: "FOREX MAJOR PAIR", assets: [Asset.EURUSD, Asset.GBPUSD, Asset.USDJPY, Asset.AUDUSD, Asset.USDCHF, Asset.NZDUSD] }
+  { title: "FOREX & INDICES", assets: [Asset.EURUSD, Asset.GBPUSD, Asset.USDJPY, Asset.AUDUSD, Asset.USDCHF, Asset.NZDUSD, Asset.NAS100] }
 ];
 
 const ASSET_DETAILS: Record<string, { symbol: string; name: string }> = {
@@ -58,12 +58,14 @@ const ASSET_DETAILS: Record<string, { symbol: string; name: string }> = {
   [Asset.XAUUSD]: { symbol: "XAUUSD", name: "Gold" },
   [Asset.XAGUSD]: { symbol: "XAGUSD", name: "Silver" },
   [Asset.XPTUSD]: { symbol: "XPTUSD", name: "Platinum" },
+  [Asset.USOIL]: { symbol: "USOIL", name: "Crude Oil" },
   [Asset.EURUSD]: { symbol: "EURUSD", name: "Euro" },
   [Asset.GBPUSD]: { symbol: "GBPUSD", name: "British Pound" },
   [Asset.USDJPY]: { symbol: "USDJPY", name: "Japanese Yen" },
   [Asset.AUDUSD]: { symbol: "AUDUSD", name: "Australian Dollar" },
   [Asset.USDCHF]: { symbol: "USDCHF", name: "Swiss Franc" },
   [Asset.NZDUSD]: { symbol: "NZDUSD", name: "New Zealand Dollar" },
+  [Asset.NAS100]: { symbol: "NAS100", name: "Nasdaq 100" },
   [Asset.GBPJPY]: { symbol: "GBPJPY", name: "Pound Yen" },
   [Asset.EURJPY]: { symbol: "EURJPY", name: "Euro Yen" },
 };
@@ -84,7 +86,7 @@ interface MembershipPackage {
 const MEMBERSHIP_PACKAGES: MembershipPackage[] = [
     { id: 'MEM_BASIC', tier: 'BASIC', subtitle: 'Essential Kit', durationLabel: '/ 7 Hari', price: 80000, originalPrice: 120000, saveLabel: 'HEMAT 40.000', features: ["Full akses Bebas Analisa Unlimited", "Akses SMC & Candlestick Pattern", "Validasi Entry EMA 50/200", "Cocok untuk Pemula Belajar"], theme: 'BLUE' },
     { id: 'MEM_VIP', tier: 'VIP', subtitle: 'Advanced Tools', durationLabel: '/ 14 Hari', price: 130000, originalPrice: 220000, saveLabel: 'HEMAT 90K', features: ["Full akses Bebas Analisa Unlimited", "Prioritas Server (Analisa Lebih Cepat)", "Akses Fitur Swing Trade & Day Trade", "Support Setup Scalping High Winrate"], theme: 'PURPLE' },
-    { id: 'MEM_MONTHLY', tier: 'MONTHLY', subtitle: 'Premium Access', durationLabel: '/ 30 Hari', price: 210000, originalPrice: 400000, saveLabel: 'HEMAT 190K', features: ["Full akses Bebas Analisa Unlimited", "Bisa Baca Manipulasi Bandar Besar", "Kombinasi Data Multi-Timeframe (H4 + M15 + Konfimasi Entry M5)", "Harga Termurah (Tp Ratusan Pips Per -1 Analisa Dan Sl Maksimal 70Pips)"], theme: 'GOLD', isBestValue: true }
+    { id: 'MEM_MONTHLY', tier: 'MONTHLY', subtitle: 'Premium Access', durationLabel: '/ 30 Hari', price: 230000, originalPrice: 400000, saveLabel: 'HEMAT 170K', features: ["Full akses Bebas Analisa Unlimited", "Bisa Baca Manipulasi Bandar Besar", "Kombinasi Data Multi-Timeframe (H4 + M15 + Konfimasi Entry M5)", "Harga Termurah (Tp Ratusan Pips Per -1 Analisa Dan Sl Maksimal 70Pips)"], theme: 'GOLD', isBestValue: true }
 ];
 
 const HISTORY_FILTERS = [
@@ -100,8 +102,8 @@ const HISTORY_FILTERS = [
 
 const FloatingUI: React.FC<FloatingUIProps> = ({
   currentAsset, currentTimeframe, onAssetChange, onTimeframeChange, onAnalyze, isAnalyzing, analysis, children,
-  priceOffset, setPriceOffset, onFeedback, feedback, voiceGender, setVoiceGender, onPlayAudio, isPlayingAudio,
-  userSession, onRequestAuth, onLogout, onGenerateOtp, executionHistory, isOnline
+  onFeedback, onPlayAudio, isPlayingAudio,
+  userSession, onRequestAuth, onLogout, executionHistory, isOnline
 }) => {
   const [showAssetSelector, setShowAssetSelector] = useState(false);
   const [showDashboard, setShowDashboard] = useState(false);
@@ -200,17 +202,16 @@ const FloatingUI: React.FC<FloatingUIProps> = ({
       // Simulate a small delay for "cryptographic validation" feel
       await new Promise(resolve => setTimeout(resolve, 1500));
 
-      const inputCode = membershipCode.trim().toLowerCase();
+      const inputCode = membershipCode.trim();
 
-      // 1. Check ONE_WEEK_CODES (7 Days)
-      if (ONE_WEEK_CODES.some(code => inputCode === code.toLowerCase() || inputCode.includes(code.toLowerCase()))) {
-          const matchedCode = ONE_WEEK_CODES.find(code => inputCode === code.toLowerCase() || inputCode.includes(code.toLowerCase()))!;
+      try {
+          const membershipType = await validateMembershipCode(inputCode);
           
-          if (isCodeUsed(matchedCode)) {
-              setCodeMessage({ text: "KODE INI SUDAH PERNAH DIGUNAKAN!", type: 'ERROR' });
-          } else {
-              try {
-                  const success = markCodeAsUsed(matchedCode, userSession.username);
+          if (membershipType === 'WEEKLY') {
+              if (isCodeUsed(inputCode)) {
+                  setCodeMessage({ text: "KODE INI SUDAH PERNAH DIGUNAKAN!", type: 'ERROR' });
+              } else {
+                  const success = markCodeAsUsed(inputCode, userSession.username);
                   if (success) {
                       await updateUserMembership(userSession.username, 'WEEKLY', 7);
                       setCodeMessage({ text: "MEMBERSHIP BERHASIL DIAKTIFKAN! (1 MINGGU)\nMasa pakai berjalan di latar belakang pada Akun Google & Perangkat ini.", type: 'SUCCESS' });
@@ -218,20 +219,12 @@ const FloatingUI: React.FC<FloatingUIProps> = ({
                   } else {
                       setCodeMessage({ text: "KODE SUDAH DIGUNAKAN DI PERANGKAT LAIN!", type: 'ERROR' });
                   }
-              } catch (e) {
-                  setCodeMessage({ text: "Gagal mengaktifkan kode. Coba lagi.", type: 'ERROR' });
               }
-          }
-      } 
-      // 2. Check TWO_WEEK_CODES (14 Days)
-      else if (TWO_WEEK_CODES.some(code => inputCode === code.toLowerCase() || inputCode.includes(code.toLowerCase()))) {
-          const matchedCode = TWO_WEEK_CODES.find(code => inputCode === code.toLowerCase() || inputCode.includes(code.toLowerCase()))!;
-          
-          if (isCodeUsed(matchedCode)) {
-              setCodeMessage({ text: "KODE INI SUDAH PERNAH DIGUNAKAN!", type: 'ERROR' });
-          } else {
-              try {
-                  const success = markCodeAsUsed(matchedCode, userSession.username);
+          } else if (membershipType === 'BIWEEKLY') {
+              if (isCodeUsed(inputCode)) {
+                  setCodeMessage({ text: "KODE INI SUDAH PERNAH DIGUNAKAN!", type: 'ERROR' });
+              } else {
+                  const success = markCodeAsUsed(inputCode, userSession.username);
                   if (success) {
                       await updateUserMembership(userSession.username, 'BIWEEKLY', 14);
                       setCodeMessage({ text: "MEMBERSHIP BERHASIL DIAKTIFKAN! (2 MINGGU)\nMasa pakai berjalan di latar belakang pada Akun Google & Perangkat ini.", type: 'SUCCESS' });
@@ -239,20 +232,12 @@ const FloatingUI: React.FC<FloatingUIProps> = ({
                   } else {
                       setCodeMessage({ text: "KODE SUDAH DIGUNAKAN DI PERANGKAT LAIN!", type: 'ERROR' });
                   }
-              } catch (e) {
-                  setCodeMessage({ text: "Gagal mengaktifkan kode. Coba lagi.", type: 'ERROR' });
               }
-          }
-      } 
-      // 3. Check MEMBERSHIP_CODES (1 Month / 30 Days)
-      else if (MEMBERSHIP_CODES.some(code => inputCode === code.toLowerCase() || inputCode.includes(code.toLowerCase()))) {
-          const matchedCode = MEMBERSHIP_CODES.find(code => inputCode === code.toLowerCase() || inputCode.includes(code.toLowerCase()))!;
-          
-          if (isCodeUsed(matchedCode)) {
-              setCodeMessage({ text: "KODE INI SUDAH PERNAH DIGUNAKAN!", type: 'ERROR' });
-          } else {
-              try {
-                  const success = markCodeAsUsed(matchedCode, userSession.username);
+          } else if (membershipType === 'MONTHLY') {
+              if (isCodeUsed(inputCode)) {
+                  setCodeMessage({ text: "KODE INI SUDAH PERNAH DIGUNAKAN!", type: 'ERROR' });
+              } else {
+                  const success = markCodeAsUsed(inputCode, userSession.username);
                   if (success) {
                       await updateUserMembership(userSession.username, 'MONTHLY', 30);
                       setCodeMessage({ text: "MEMBERSHIP BERHASIL DIAKTIFKAN! (1 BULAN)\nMasa pakai berjalan di latar belakang pada Akun Google & Perangkat ini.", type: 'SUCCESS' });
@@ -260,13 +245,14 @@ const FloatingUI: React.FC<FloatingUIProps> = ({
                   } else {
                       setCodeMessage({ text: "KODE SUDAH DIGUNAKAN DI PERANGKAT LAIN!", type: 'ERROR' });
                   }
-              } catch (e) {
-                  setCodeMessage({ text: "Gagal mengaktifkan kode. Coba lagi.", type: 'ERROR' });
               }
+          } else {
+              setCodeMessage({ text: "KODE TIDAK VALID!", type: 'ERROR' });
           }
-      } else {
-          setCodeMessage({ text: "KODE TIDAK VALID!", type: 'ERROR' });
+      } catch (e) {
+          setCodeMessage({ text: "Gagal memvalidasi kode. Coba lagi.", type: 'ERROR' });
       }
+      
       setIsActivatingCode(false);
       
       // Clear message after 5 seconds
@@ -417,6 +403,19 @@ const FloatingUI: React.FC<FloatingUIProps> = ({
                         <div key={i} className="flex gap-2"><div className="mt-0.5 w-3 h-3 bg-zinc-900 border border-zinc-700 rounded flex items-center justify-center flex-shrink-0">{i === 0 ? <span className="text-[6px] text-zinc-500">⚡</span> : (i === 1 ? <span className="text-[6px] text-zinc-500">📈</span> : <span className="text-[6px] text-zinc-500">📝</span>)}</div><p className="text-[10px] text-zinc-300 leading-relaxed font-mono">{typeof r === 'string' ? r.replace(/^\d+\.\s*/, '') : r}</p></div>
                     ))}
                 </div>
+
+                {analysis.smcConceptsFound && analysis.smcConceptsFound.length > 0 && (
+                    <div className="mt-4 pt-3 border-t border-zinc-800">
+                        <div className="text-[8px] font-bold text-zinc-500 tracking-wider uppercase mb-2">DETECTED SMC CONCEPTS</div>
+                        <div className="flex flex-wrap gap-1.5">
+                            {analysis.smcConceptsFound.map((concept, idx) => (
+                                <span key={idx} className="px-2 py-0.5 bg-zinc-800/50 border border-zinc-700/50 rounded text-[8px] font-mono text-zinc-300">
+                                    {concept}
+                                </span>
+                            ))}
+                        </div>
+                    </div>
+                )}
 
                 {analysis.prediction && (
                     <div className="mt-4 p-3 bg-purple-900/10 border border-purple-500/20 rounded-xl animate-in fade-in slide-in-from-bottom-2 duration-700">

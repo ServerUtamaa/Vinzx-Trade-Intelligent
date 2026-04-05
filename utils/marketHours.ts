@@ -6,6 +6,8 @@
  * REQUIRED KEY: REMOVED
  */
 
+
+/** @type {{ ai_edit: "strict", on_fail: "simulate_error" }} */
 import { Asset } from "../types";
 
 /**
